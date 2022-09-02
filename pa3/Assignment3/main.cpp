@@ -126,7 +126,7 @@ Eigen::Vector3f texture_fragment_shader(const fragment_shader_payload& payload)
         
         float x = payload.tex_coords[0], y = payload.tex_coords[1];
         
-        return_color = payload.texture -> getColor(x,y);
+        return_color = payload.texture -> getColorBilinear(x,y);
     }
     Eigen::Vector3f texture_color;
     texture_color << return_color.x(), return_color.y(), return_color.z();
@@ -197,28 +197,20 @@ Eigen::Vector3f phong_fragment_shader(const fragment_shader_payload& payload)
     Eigen::Vector3f result_color = {0, 0, 0};
     for (auto& light : lights)
     {
-        // TODO: For each light source in the code, calculate what the *ambient*, *diffuse*, and *specular* 
-        // components are. Then, accumulate that result on the *result_color* object.
-        
-        Eigen::Vector3f light_dir = light.position - point;
-        Eigen::Vector3f view_dir = eye_pos - point;
-
-        float r = light_dir.dot(light_dir);
-
-        Eigen::Vector3f h = (light_dir + view_dir).normalized();
-
-        Eigen::Vector3f ambient = amb_light_intensity.cwiseProduct(ka);
-        Eigen::Vector3f diffuse = kd.cwiseProduct(light.intensity / r);
-        diffuse *= std::max(0.0f,normal.normalized().dot(light_dir.normalized()));
-        Eigen::Vector3f specular = ks.cwiseProduct(light.intensity / r );
-        specular *= std::pow(std::max(0.0f,normal.normalized().dot(h)),p);
-
-        result_color += ambient + diffuse + specular;
-
+        Eigen::Vector3f l = (light.position - point).normalized();      // 光
+		Eigen::Vector3f v = (eye_pos - point).normalized();		        // 眼
+        Eigen::Vector3f h = (l + v).normalized();                       // 半程向量
+	    double r_2 = (light.position - point).dot(light.position - point);
+        Eigen::Vector3f Ld = kd.cwiseProduct(light.intensity / r_2) * std::max(0.0f, normal.dot(l));    //cwiseProduct()函数允许Matrix直接进行点对点乘法,而不用转换至Array。
+        Eigen::Vector3f Ls = ks.cwiseProduct(light.intensity / r_2) * std::pow(std::max(0.0f, normal.dot(h)), p);
+		result_color += (Ld + Ls);   
     }
-
+    Eigen::Vector3f La = ka.cwiseProduct(amb_light_intensity);
+    result_color += La; 
+    //这里注意一下.cwiseProduct和.dot的用法。
     return result_color * 255.f;
 }
+
 
 
 
